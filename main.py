@@ -1,38 +1,57 @@
-# To run and test the code you need to update 4 places:
-# 1. Change MY_EMAIL/MY_PASSWORD to your own details.
-# 2. Go to your email provider and make it allow less secure apps.
-# 3. Update the SMTP ADDRESS to match your email provider.
-# 4. Update birthdays.csv to contain today's month and day.
-# See the solution video in the 100 Days of Python Course for explainations.
-
-
-from datetime import datetime
-import pandas
-import random
-import smtplib
 import os
+import requests
+from twilio.rest import Client
 
-# import os and use it to get the Github repository secrets
-MY_EMAIL = os.environ.get("MY_EMAIL")
-MY_PASSWORD = os.environ.get("MY_PASSWORD")
+SP_LAT = -23.550520
+SP_LON = -46.633308
 
-today = datetime.now()
-today_tuple = (today.month, today.day)
+MI_LAT = 25.761681
+MI_LON = -80.191788
 
-data = pandas.read_csv("birthdays.csv")
-birthdays_dict = {(data_row["month"], data_row["day"])                  : data_row for (index, data_row) in data.iterrows()}
-if today_tuple in birthdays_dict:
-    birthday_person = birthdays_dict[today_tuple]
-    file_path = f"letter_templates/letter_{random.randint(1, 3)}.txt"
-    with open(file_path) as letter_file:
-        contents = letter_file.read()
-        contents = contents.replace("[NAME]", birthday_person["name"])
+OW_URL = "https://api.openweathermap.org/data/2.5/forecast"
+OW_PARAMETERS = {
+    "lat" : SP_LAT,
+    "lon" : SP_LON,
+    "appid" : os.environ.get("OWM_API_KEY"),
+    "cnt" : 4
+}
 
-    with smtplib.SMTP("YOUR EMAIL PROVIDER SMTP SERVER ADDRESS") as connection:
-        connection.starttls()
-        connection.login(MY_EMAIL, MY_PASSWORD)
-        connection.sendmail(
-            from_addr=MY_EMAIL,
-            to_addrs=birthday_person["email"],
-            msg=f"Subject:Happy Birthday!\n\n{contents}"
-        )
+account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
+client = Client(account_sid, auth_token)
+
+
+
+response = requests.get(url=OW_URL, params=OW_PARAMETERS)
+response.raise_for_status()
+
+obj = response.json()
+next_id_conditions = []
+
+will_rain = False
+for hour_data in obj["list"]:
+   id_condition = hour_data["weather"][0]["id"]
+   next_id_conditions.append(id_condition)
+   if id_condition < 700:
+       will_rain = True
+
+
+if will_rain:
+    msg = "Bring an Umbrella!!!"
+    print(msg)
+else:
+    msg = "No rain today!!"
+    print(msg)
+
+message = client.messages.create(
+  from_="whatsapp:+14155238886",
+  body=msg,
+  to="whatsapp:+5511971464020"
+)
+
+print(message.status)
+print(message.sid)
+
+print(next_id_conditions)
+# print(response.status_code)
+# print(response.json())
